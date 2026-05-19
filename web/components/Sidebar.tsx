@@ -10,6 +10,8 @@ const navItemsBase = [
   { href: '/calendario',  label: 'Calendário',    icone: '📅', roles: null },
   { href: '/relatorios',  label: 'Relatórios',    icone: '📈', roles: null },
   { href: '/alertas',     label: 'Alertas',       icone: '🔔', roles: null },
+  { href: '/frota',       label: 'Frota',         icone: '🚗', roles: ['super_admin', 'admin', 'financeiro'] as string[] },
+  { href: '/seguros',     label: 'Seguros',       icone: '🛡️', roles: ['super_admin', 'admin', 'financeiro'] as string[] },
   { href: '/usuarios',    label: 'Usuários',      icone: '👥', roles: ['super_admin', 'admin'] as string[] },
 ]
 

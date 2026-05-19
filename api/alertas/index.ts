@@ -1,10 +1,10 @@
-// GET /api/alertas?dias=7
-// Retorna lançamentos com vencimento nos próximos N dias
+// GET /api/alertas?dias=7           — vencimentos próximos
+// GET /api/alertas?modo=calendario&mes=YYYY-MM — lançamentos do mês para o calendário
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import {
   getDb, cors, requireAuth, handleError, sendJson,
-  getUnidadeFiltro,
+  getUnidadeFiltro, mesAtual, ValidationError,
 } from '../_lib'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -18,8 +18,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const user = requireAuth(req as unknown as import('http').IncomingMessage)
     const db   = getDb()
+    const q    = req.query as Record<string, string>
 
-    const q         = req.query as Record<string, string>
+    // ------ Modo calendário ------
+    if (q.modo === 'calendario') {
+      const mes       = q.mes ?? mesAtual()
+      const unidadeId = getUnidadeFiltro(user, q.unidadeId)
+
+      if (!/^\d{4}-\d{2}$/.test(mes)) {
+        throw new ValidationError('Parâmetro mes deve estar no formato YYYY-MM')
+      }
+
+      const rows = await db`
+        SELECT
+          l.id,
+          l.descricao,
+          l.valor,
+          l.status,
+          l.pago,
+          l.data_vencimento,
+          l.data_pagamento,
+          c.nome AS categoria,
+          c.cor  AS categoria_cor
+        FROM lancamentos l
+        JOIN categorias c ON c.id = l.categoria_id
+        WHERE l.deleted_at     IS NULL
+          AND l.status        != 'cancelado'
+          AND l.mes_referencia = ${mes}
+          AND (${unidadeId ?? null}::uuid IS NULL OR l.unidade_id = ${unidadeId ?? null}::uuid)
+        ORDER BY COALESCE(l.data_vencimento, l.data_pagamento) ASC, l.valor DESC
+      `
+
+      return sendJson(res as unknown as import('http').ServerResponse, 200, { data: rows })
+    }
+
+    // ------ Modo alertas (padrão) ------
     const dias      = Math.min(30, Math.max(1, parseInt(q.dias ?? '7', 10)))
     const unidadeId = getUnidadeFiltro(user, q.unidadeId)
 

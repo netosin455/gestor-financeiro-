@@ -90,8 +90,8 @@ export default function CalendarioPage() {
     setErro(null)
     try {
       const res = await apiFetch<{ data: Lancamento[] }>(
-        '/api/calendario',
-        { params: { mes: mesKey } },
+        '/api/alertas',
+        { params: { modo: 'calendario', mes: mesKey } },
         token,
       )
       setLancamentos(res.data)

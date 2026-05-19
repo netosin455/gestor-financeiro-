@@ -2,6 +2,19 @@
 
 ---
 
+## [2026-05-19] — Frota, Seguros e sincronização Google Sheets
+
+- Adicionado: `api/operacional/index.ts` — CRUD de frota e listagem de motoristas via `?recurso=frota|motoristas` (ocupa 1 slot Vercel no lugar de 3)
+- Adicionado: `web/app/frota/page.tsx` — lista de veículos com edição, ativar/desativar e associação de motorista
+- Adicionado: `web/app/seguros/page.tsx` — lista de seguros com resumo mensal, vencimento colorido e CRUD completo
+- Adicionado: itens Frota e Seguros na Sidebar (visível para financeiro, admin, super_admin)
+- Adicionado: `docs/sheets-sync.md` — guia completo do Google Apps Script para sincronização bidirecional com o Google Sheets
+- Refatorado: `api/alertas/index.ts` — incorpora a lógica do calendário via `?modo=calendario` (elimina função separada)
+- Removido: `api/calendario/index.ts` — funcionalidade migrada para `api/alertas?modo=calendario`
+- Atualizado: `web/app/calendario/page.tsx` — aponta para o novo endpoint `/api/alertas?modo=calendario`
+
+---
+
 ## [2026-05-19] — Entradas (receitas)
 
 - Adicionado: coluna `tipo VARCHAR(10) DEFAULT 'saida'` na tabela `lancamentos` (migration-v3)
