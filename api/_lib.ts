@@ -193,3 +193,35 @@ export function mesAnterior(mes: string): string {
   const d = new Date(ano, m - 2, 1)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
+
+// ------- Audit trail -------
+
+export async function registrarAuditoria(params: {
+  lancamentoId:  string
+  user:          UserJWT
+  acao:          'criar' | 'editar' | 'excluir' | 'pagar' | 'reabrir'
+  campoAlterado?: string
+  valorAnterior?: string
+  valorNovo?:     string
+  ip?:            string
+}): Promise<void> {
+  try {
+    const db = getDb()
+    await db`
+      INSERT INTO lancamentos_historico
+        (lancamento_id, usuario_id, usuario_nome, acao, campo_alterado, valor_anterior, valor_novo, ip)
+      VALUES (
+        ${params.lancamentoId}::uuid,
+        ${params.user.id}::uuid,
+        ${params.user.name ?? null},
+        ${params.acao},
+        ${params.campoAlterado ?? null},
+        ${params.valorAnterior ?? null},
+        ${params.valorNovo     ?? null},
+        ${params.ip            ?? null}
+      )
+    `
+  } catch (err) {
+    console.error('[Auditoria] Falha ao registrar histórico:', err)
+  }
+}

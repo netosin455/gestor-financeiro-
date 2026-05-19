@@ -6,6 +6,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import {
   getDb, cors, requireAuth, handleError, sendJson,
   getUnidadeFiltro, NotFoundError, ForbiddenError, ValidationError,
+  registrarAuditoria,
 } from '../_lib'
 import type { LancamentoUpdate, StatusLancamento, TipoSetor } from '../../types'
 
@@ -99,6 +100,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         RETURNING *
       `
 
+      await registrarAuditoria({
+        lancamentoId: id,
+        user,
+        acao:         'editar',
+        valorAnterior: `status:${lancamento.status} valor:${lancamento.valor}`,
+        valorNovo:     `status:${body.status ?? lancamento.status} valor:${body.valor ?? lancamento.valor}`,
+      })
+
       return sendJson(res as unknown as import('http').ServerResponse, 200, { data: atualizado })
     }
 
@@ -115,6 +124,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         SET deleted_at = NOW(), status = 'cancelado'
         WHERE id = ${id}::uuid AND deleted_at IS NULL
       `
+
+      await registrarAuditoria({
+        lancamentoId: id,
+        user,
+        acao:         'excluir',
+        valorAnterior: `${lancamento.descricao} — R$ ${lancamento.valor}`,
+      })
 
       return sendJson(res as unknown as import('http').ServerResponse, 200, {
         data: { message: 'Lançamento removido com sucesso' },

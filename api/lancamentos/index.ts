@@ -5,7 +5,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import {
   getDb, cors, requireAuth, handleError, sendJson,
   requireFields, getUnidadeFiltro, parsePagination,
-  mesDaData, ValidationError,
+  mesDaData, ValidationError, registrarAuditoria,
 } from '../_lib'
 import type { LancamentoCreate, StatusLancamento, TipoSetor } from '../../types'
 
@@ -164,6 +164,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         )
         RETURNING *
       `
+
+      await registrarAuditoria({
+        lancamentoId: novo.id as string,
+        user,
+        acao:         'criar',
+        valorNovo:    `${descricao} — R$ ${valor}`,
+      })
 
       return sendJson(res as unknown as import('http').ServerResponse, 201, { data: novo })
     }
