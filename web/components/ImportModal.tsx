@@ -83,7 +83,7 @@ export function ImportModal({ isOpen, onClose, onSuccess, onError, categorias, t
   const fileRef = useRef<HTMLInputElement>(null)
   const [preview,   setPreview]   = useState<PreviewRow[]>([])
   const [fase,      setFase]      = useState<'upload' | 'preview' | 'importando' | 'resultado'>('upload')
-  const [progresso, setProgresso] = useState({ atual: 0, total: 0, erros: 0 })
+  const [progresso, setProgresso] = useState({ atual: 0, total: 0, erros: 0, duplicados: 0 })
   const [nomeArq,   setNomeArq]   = useState('')
 
   if (!isOpen) return null
@@ -145,11 +145,37 @@ export function ImportModal({ isOpen, onClose, onSuccess, onError, categorias, t
     setFase('importando')
     let criados = 0
     let erros   = 0
-    setProgresso({ atual: 0, total: preview.length, erros: 0 })
+    let duplicados = 0
+    setProgresso({ atual: 0, total: preview.length, erros: 0, duplicados: 0 })
+
+    // Busca lançamentos existentes dos meses que estão no import para checar duplicatas
+    const mesesImport = [...new Set(preview.map(r => r.data.slice(0, 7)))]
+    const existentes = new Set<string>()
+    for (const mes of mesesImport) {
+      try {
+        const resp = await apiFetch<{ data: { descricao: string; valor: number; data_lancamento: string }[] }>(
+          '/api/lancamentos',
+          { params: { mes, limit: 500 } },
+          token,
+        )
+        for (const l of resp.data) {
+          const key = `${l.descricao.trim().toLowerCase()}|${String(l.data_lancamento).slice(0, 10)}|${Number(l.valor).toFixed(2)}`
+          existentes.add(key)
+        }
+      } catch { /* ignora erro de busca — prossegue sem checar duplicatas desse mês */ }
+    }
 
     for (let i = 0; i < preview.length; i++) {
       const row = preview[i]
-      if (!row.catId) { erros++; continue }
+      if (!row.catId) { erros++; setProgresso({ atual: i + 1, total: preview.length, erros, duplicados }); continue }
+
+      const key = `${row.descricao.trim().toLowerCase()}|${row.data}|${row.valor.toFixed(2)}`
+      if (existentes.has(key)) {
+        duplicados++
+        setProgresso(p => ({ ...p, atual: i + 1, duplicados }))
+        continue
+      }
+
       try {
         await apiFetch('/api/lancamentos', {
           method: 'POST',
@@ -162,14 +188,15 @@ export function ImportModal({ isOpen, onClose, onSuccess, onError, categorias, t
           }),
         }, token)
         criados++
+        existentes.add(key)
       } catch {
         erros++
       }
-      setProgresso({ atual: i + 1, total: preview.length, erros })
+      setProgresso({ atual: i + 1, total: preview.length, erros, duplicados })
     }
 
     setFase('resultado')
-    setProgresso(p => ({ ...p, erros }))
+    setProgresso(p => ({ ...p, erros, duplicados }))
     if (criados > 0) onSuccess(criados)
   }
 
@@ -301,11 +328,16 @@ export function ImportModal({ isOpen, onClose, onSuccess, onError, categorias, t
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center', padding: '16px 0' }}>
             <div style={{ fontSize: 48 }}>🎉</div>
             <div style={chip('#0D3320', '#27AE60')}>
-              ✅ {progresso.total - progresso.erros} lançamentos importados
+              ✅ {progresso.total - progresso.erros - progresso.duplicados} lançamentos importados
             </div>
+            {progresso.duplicados > 0 && (
+              <div style={chip('#0D1A2D', '#2980B9')}>
+                🔁 {progresso.duplicados} duplicatas ignoradas
+              </div>
+            )}
             {progresso.erros > 0 && (
               <div style={chip('#2D1F0A', '#E67E22')}>
-                ⚠️ {progresso.erros} registros ignorados (sem categoria ou erro)
+                ⚠️ {progresso.erros} registros com erro (sem categoria)
               </div>
             )}
             <button onClick={onClose} style={btnSalvar}>Fechar e Atualizar</button>

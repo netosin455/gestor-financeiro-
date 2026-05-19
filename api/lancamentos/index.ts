@@ -141,11 +141,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         LEFT JOIN categorias c ON c.id = l.categoria_id
         LEFT JOIN unidades   u ON u.id = l.unidade_id
         WHERE l.deleted_at IS NULL
-          ${mes         ? db`AND l.mes_referencia = ${mes}`                                    : db``}
-          ${unidadeId   ? db`AND l.unidade_id     = ${unidadeId}::uuid`                        : db``}
-          ${categoriaId ? db`AND l.categoria_id   = ${categoriaId}::uuid`                      : db``}
-          ${status      ? db`AND l.status         = ${status}`                                 : db``}
-          ${setor       ? db`AND l.setor           = ${setor}`                                 : db``}
+          AND (${mes ?? null} IS NULL OR l.mes_referencia = ${mes ?? null})
+          AND (${unidadeId ?? null}::uuid IS NULL OR l.unidade_id = ${unidadeId ?? null}::uuid)
+          AND (${categoriaId ?? null}::uuid IS NULL OR l.categoria_id = ${categoriaId ?? null}::uuid)
+          AND (${status ?? null} IS NULL OR l.status = ${status ?? null})
+          AND (${setor ?? null} IS NULL OR l.setor = ${setor ?? null})
         ORDER BY l.data_lancamento DESC, l.created_at DESC
         LIMIT  ${limit}
         OFFSET ${offset}
