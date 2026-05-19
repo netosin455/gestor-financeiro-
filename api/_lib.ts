@@ -125,10 +125,11 @@ export function handleError(err: unknown, res: ServerResponse): void {
     return
   }
 
-  // Erro inesperado — não expõe detalhe interno ao cliente
+  // Erro inesperado
+  const msg = err instanceof Error ? err.message : String(err)
   console.error('[Gestor Financeiro] Erro interno:', err)
   res.statusCode = 500
-  res.end(JSON.stringify({ error: 'Erro interno do servidor' }))
+  res.end(JSON.stringify({ error: 'Erro interno: ' + msg }))
 }
 
 // ------- Utilitários de request/response -------
