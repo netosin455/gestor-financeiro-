@@ -1,16 +1,26 @@
-// GET  /api/lancamentos  — listagem filtrada com paginação
-// POST /api/lancamentos  — criar novo lançamento
+// GET  /api/lancamentos          — listagem filtrada com paginação
+// GET  /api/lancamentos?format=csv — exportação CSV do mês
+// POST /api/lancamentos          — criar novo lançamento
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import {
-  getDb, cors, requireAuth, handleError, sendJson,
+  getDb, cors, requireAuth, checkPermission, handleError, sendJson,
   requireFields, getUnidadeFiltro, parsePagination,
-  mesDaData, ValidationError, registrarAuditoria,
+  mesDaData, mesAtual, ValidationError, registrarAuditoria,
 } from '../_lib'
 import type { LancamentoCreate, StatusLancamento, TipoSetor } from '../../types'
 
 const STATUS_VALIDOS: StatusLancamento[] = ['pendente', 'pago', 'atrasado', 'cancelado']
 const SETORES_VALIDOS: TipoSetor[] = ['ADMINISTRATIVO', 'CAMPO', 'FOLHA DE PAGAMENTOS', 'TRIBUTOS']
+
+function escapeCsv(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  const str = String(value)
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return `"${str.replace(/"/g, '""')}"`
+  }
+  return str
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res as unknown as import('http').ServerResponse)
@@ -22,7 +32,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const db   = getDb()
 
     // --------------------------------------------------
-    // GET — Listagem com filtros
+    // GET — Listagem com filtros (ou CSV se format=csv)
     // --------------------------------------------------
     if (req.method === 'GET') {
       const q = req.query as Record<string, string>
@@ -32,12 +42,61 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const setor      = q.setor  as TipoSetor | undefined
       const categoriaId = q.categoriaId
       const unidadeId  = getUnidadeFiltro(user, q.unidadeId)
-      const { limit, offset, page } = parsePagination(q)
 
-      // Validações de filtros
       if (mes && !/^\d{4}-\d{2}$/.test(mes)) {
         throw new ValidationError('Parâmetro mes deve estar no formato YYYY-MM')
       }
+
+      // ------ CSV export ------
+      if (q.format === 'csv') {
+        checkPermission(user, ['super_admin', 'admin'])
+
+        const mesCsv = mes ?? mesAtual()
+        const csvRows = await db`
+          SELECT
+            l.data_lancamento,
+            l.descricao,
+            c.nome            AS categoria,
+            u.nome            AS unidade,
+            l.valor,
+            l.status,
+            l.data_vencimento,
+            l.data_pagamento,
+            l.setor,
+            l.observacoes
+          FROM lancamentos l
+          LEFT JOIN categorias c ON c.id = l.categoria_id
+          LEFT JOIN unidades   u ON u.id = l.unidade_id
+          WHERE l.deleted_at     IS NULL
+            AND l.mes_referencia  = ${mesCsv}
+            AND (${unidadeId ?? null}::uuid IS NULL OR l.unidade_id = ${unidadeId ?? null}::uuid)
+          ORDER BY l.data_lancamento ASC, l.valor DESC
+        `
+
+        const header = 'Data,Descrição,Categoria,Unidade,Valor,Status,Vencimento,Pagamento,Setor,Observações'
+        const lines  = (csvRows as Record<string, unknown>[]).map(r => [
+          escapeCsv(String(r.data_lancamento ?? '').slice(0, 10)),
+          escapeCsv(r.descricao),
+          escapeCsv(r.categoria),
+          escapeCsv(r.unidade),
+          escapeCsv(r.valor),
+          escapeCsv(r.status),
+          escapeCsv(String(r.data_vencimento ?? '').slice(0, 10)),
+          escapeCsv(String(r.data_pagamento  ?? '').slice(0, 10)),
+          escapeCsv(r.setor),
+          escapeCsv(r.observacoes),
+        ].join(','))
+
+        const csv    = [header, ...lines].join('\r\n')
+        const srvRes = res as unknown as import('http').ServerResponse
+        srvRes.statusCode = 200
+        srvRes.setHeader('Content-Type', 'text/csv; charset=utf-8')
+        srvRes.setHeader('Content-Disposition', `attachment; filename="lancamentos-${mesCsv}.csv"`)
+        srvRes.end('﻿' + csv)
+        return
+      }
+
+      // ------ Listagem paginada ------
       if (status && !STATUS_VALIDOS.includes(status)) {
         throw new ValidationError(`Status inválido: ${status}`)
       }
@@ -45,7 +104,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         throw new ValidationError(`Setor inválido: ${setor}`)
       }
 
-      // Query dinâmica com condições opcionais
+      const { limit, offset, page } = parsePagination(q)
+
       const rows = await db`
         SELECT
           l.id, l.descricao, l.categoria_id, l.unidade_id, l.valor,
