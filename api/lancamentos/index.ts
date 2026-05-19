@@ -118,40 +118,57 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const { limit, offset, page } = parsePagination(q)
 
-      const rows = await db`
-        SELECT
-          l.id, l.descricao, l.categoria_id, l.unidade_id, l.valor,
-          l.setor, l.data_lancamento, l.data_vencimento, l.data_pagamento,
-          l.status, l.pago, l.solicitado, l.mes_referencia,
-          l.criado_por, l.observacoes, l.created_at, l.updated_at,
-          c.nome  AS categoria_nome,
-          c.grupo AS categoria_grupo,
-          c.cor   AS categoria_cor,
-          u.nome  AS unidade_nome,
-          u.tipo  AS unidade_tipo,
-          CASE
-            WHEN l.status = 'pago'                                            THEN 'pago'
-            WHEN l.data_vencimento < CURRENT_DATE AND l.status = 'pendente'   THEN 'atrasado'
-            WHEN l.data_vencimento <= CURRENT_DATE + INTERVAL '7 days'
-                 AND l.status = 'pendente'                                    THEN 'vencendo'
-            ELSE 'pendente'
-          END AS status_calculado,
-          COUNT(*) OVER() AS total_count
-        FROM lancamentos l
-        LEFT JOIN categorias c ON c.id = l.categoria_id
-        LEFT JOIN unidades   u ON u.id = l.unidade_id
-        WHERE l.deleted_at IS NULL
-          AND (${mes ?? null} IS NULL OR l.mes_referencia = ${mes ?? null})
-          AND (${unidadeId ?? null}::uuid IS NULL OR l.unidade_id = ${unidadeId ?? null}::uuid)
-          AND (${categoriaId ?? null}::uuid IS NULL OR l.categoria_id = ${categoriaId ?? null}::uuid)
-          AND (${status ?? null} IS NULL OR l.status = ${status ?? null})
-          AND (${setor ?? null} IS NULL OR l.setor = ${setor ?? null})
-        ORDER BY l.data_lancamento DESC, l.created_at DESC
-        LIMIT  ${limit}
-        OFFSET ${offset}
-      `
+      const mesFiltro       = mes        ?? mesAtual()
+      const statusFiltro    = status     ?? null
+      const setorFiltro     = setor      ?? null
+      const unidadeFiltro   = unidadeId  ?? null
+      const categoriaFiltro = categoriaId ?? null
 
-      const total = rows.length > 0 ? Number(rows[0].total_count) : 0
+      const [countRows, rows] = await Promise.all([
+        db`
+          SELECT COUNT(*) AS total
+          FROM lancamentos l
+          WHERE l.deleted_at IS NULL
+            AND l.mes_referencia = ${mesFiltro}
+            AND (${unidadeFiltro}::uuid IS NULL OR l.unidade_id = ${unidadeFiltro}::uuid)
+            AND (${categoriaFiltro}::uuid IS NULL OR l.categoria_id = ${categoriaFiltro}::uuid)
+            AND (${statusFiltro} IS NULL OR l.status = ${statusFiltro})
+            AND (${setorFiltro} IS NULL OR l.setor = ${setorFiltro})
+        `,
+        db`
+          SELECT
+            l.id, l.descricao, l.categoria_id, l.unidade_id, l.valor,
+            l.setor, l.data_lancamento, l.data_vencimento, l.data_pagamento,
+            l.status, l.pago, l.solicitado, l.mes_referencia,
+            l.criado_por, l.observacoes, l.created_at, l.updated_at,
+            c.nome  AS categoria_nome,
+            c.grupo AS categoria_grupo,
+            c.cor   AS categoria_cor,
+            u.nome  AS unidade_nome,
+            u.tipo  AS unidade_tipo,
+            CASE
+              WHEN l.status = 'pago'                                          THEN 'pago'
+              WHEN l.data_vencimento < CURRENT_DATE AND l.status = 'pendente' THEN 'atrasado'
+              WHEN l.data_vencimento <= CURRENT_DATE + INTERVAL '7 days'
+                   AND l.status = 'pendente'                                  THEN 'vencendo'
+              ELSE 'pendente'
+            END AS status_calculado
+          FROM lancamentos l
+          LEFT JOIN categorias c ON c.id = l.categoria_id
+          LEFT JOIN unidades   u ON u.id = l.unidade_id
+          WHERE l.deleted_at IS NULL
+            AND l.mes_referencia = ${mesFiltro}
+            AND (${unidadeFiltro}::uuid IS NULL OR l.unidade_id = ${unidadeFiltro}::uuid)
+            AND (${categoriaFiltro}::uuid IS NULL OR l.categoria_id = ${categoriaFiltro}::uuid)
+            AND (${statusFiltro} IS NULL OR l.status = ${statusFiltro})
+            AND (${setorFiltro} IS NULL OR l.setor = ${setorFiltro})
+          ORDER BY l.data_lancamento DESC, l.created_at DESC
+          LIMIT  ${limit}
+          OFFSET ${offset}
+        `,
+      ])
+
+      const total = Number(countRows[0]?.total ?? 0)
 
       return sendJson(res as unknown as import('http').ServerResponse, 200, {
         data:       rows,
