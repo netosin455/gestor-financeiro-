@@ -132,8 +132,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             AND l.mes_referencia = ${mesFiltro}
             AND (${unidadeFiltro}::uuid IS NULL OR l.unidade_id = ${unidadeFiltro}::uuid)
             AND (${categoriaFiltro}::uuid IS NULL OR l.categoria_id = ${categoriaFiltro}::uuid)
-            AND (${statusFiltro} IS NULL OR l.status = ${statusFiltro})
-            AND (${setorFiltro} IS NULL OR l.setor = ${setorFiltro})
+            AND (${statusFiltro}::text IS NULL OR l.status = ${statusFiltro}::text)
+            AND (${setorFiltro}::text IS NULL OR l.setor = ${setorFiltro}::text)
         `,
         db`
           SELECT
@@ -160,8 +160,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             AND l.mes_referencia = ${mesFiltro}
             AND (${unidadeFiltro}::uuid IS NULL OR l.unidade_id = ${unidadeFiltro}::uuid)
             AND (${categoriaFiltro}::uuid IS NULL OR l.categoria_id = ${categoriaFiltro}::uuid)
-            AND (${statusFiltro} IS NULL OR l.status = ${statusFiltro})
-            AND (${setorFiltro} IS NULL OR l.setor = ${setorFiltro})
+            AND (${statusFiltro}::text IS NULL OR l.status = ${statusFiltro}::text)
+            AND (${setorFiltro}::text IS NULL OR l.setor = ${setorFiltro}::text)
           ORDER BY l.data_lancamento DESC, l.created_at DESC
           LIMIT  ${limit}
           OFFSET ${offset}
