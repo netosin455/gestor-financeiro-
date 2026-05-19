@@ -4,17 +4,22 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '../contexts/AuthContext'
 
-const navItems = [
-  { href: '/dashboard',   label: 'Dashboard',    icone: '📊' },
-  { href: '/lancamentos', label: 'Lançamentos',   icone: '📋' },
-  { href: '/calendario',  label: 'Calendário',    icone: '📅' },
-  { href: '/relatorios',  label: 'Relatórios',    icone: '📈' },
-  { href: '/alertas',     label: 'Alertas',       icone: '🔔' },
+const navItemsBase = [
+  { href: '/dashboard',   label: 'Dashboard',    icone: '📊', roles: null },
+  { href: '/lancamentos', label: 'Lançamentos',   icone: '📋', roles: null },
+  { href: '/calendario',  label: 'Calendário',    icone: '📅', roles: null },
+  { href: '/relatorios',  label: 'Relatórios',    icone: '📈', roles: null },
+  { href: '/alertas',     label: 'Alertas',       icone: '🔔', roles: null },
+  { href: '/usuarios',    label: 'Usuários',      icone: '👥', roles: ['super_admin', 'admin'] as string[] },
 ]
 
 export function Sidebar() {
   const pathname = usePathname()
   const { user, logout } = useAuth()
+
+  const navItems = navItemsBase.filter(item =>
+    !item.roles || (user && item.roles.includes(user.role))
+  )
 
   return (
     <aside style={styles.sidebar}>
