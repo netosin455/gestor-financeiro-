@@ -1,11 +1,12 @@
-// GET    /api/lancamentos/:id  — buscar por id
-// PUT    /api/lancamentos/:id  — atualizar
-// DELETE /api/lancamentos/:id  — soft delete
+// GET    /api/lancamentos/:id              — buscar por id
+// GET    /api/lancamentos/:id?historico=1  — histórico de auditoria
+// PUT    /api/lancamentos/:id              — atualizar
+// DELETE /api/lancamentos/:id              — soft delete
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import {
-  getDb, cors, requireAuth, handleError, sendJson,
-  getUnidadeFiltro, NotFoundError, ForbiddenError, ValidationError,
+  getDb, cors, requireAuth, checkPermission, handleError, sendJson,
+  getUnidadeFiltro, parsePagination, NotFoundError, ForbiddenError, ValidationError,
   registrarAuditoria,
 } from '../_lib'
 import type { LancamentoUpdate, StatusLancamento, TipoSetor } from '../../types'
@@ -51,9 +52,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // --------------------------------------------------
-    // GET
+    // GET — lançamento ou histórico de auditoria
     // --------------------------------------------------
     if (req.method === 'GET') {
+      const q = req.query as Record<string, string>
+
+      if (q.historico) {
+        checkPermission(user, ['super_admin', 'admin', 'financeiro'])
+        const { limit, offset, page } = parsePagination(q)
+
+        const hist = await db`
+          SELECT id, usuario_id, usuario_nome, acao,
+                 campo_alterado, valor_anterior, valor_novo, ip, created_at,
+                 COUNT(*) OVER() AS total_count
+          FROM lancamentos_historico
+          WHERE lancamento_id = ${id}::uuid
+          ORDER BY created_at DESC
+          LIMIT  ${limit}
+          OFFSET ${offset}
+        `
+        const total = hist.length > 0 ? Number(hist[0].total_count) : 0
+        return sendJson(res as unknown as import('http').ServerResponse, 200, {
+          data: hist, total, page, limit, totalPages: Math.ceil(total / limit),
+        })
+      }
+
       return sendJson(res as unknown as import('http').ServerResponse, 200, { data: lancamento })
     }
 
