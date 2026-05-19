@@ -44,7 +44,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           AND l.mes_referencia = ${mes}
           AND l.deleted_at IS NULL
           AND l.status != 'cancelado'
-          ${unidadeId ? db`AND l.unidade_id = ${unidadeId}::uuid` : db``}
+          AND (${unidadeId ?? null}::uuid IS NULL OR l.unidade_id = ${unidadeId ?? null}::uuid)
         GROUP BY c.id, c.nome, c.grupo, c.cor
         ORDER BY valor DESC
       `,
@@ -58,7 +58,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           AND l.mes_referencia = ${mesAnt}
           AND l.deleted_at IS NULL
           AND l.status != 'cancelado'
-          ${unidadeId ? db`AND l.unidade_id = ${unidadeId}::uuid` : db``}
+          AND (${unidadeId ?? null}::uuid IS NULL OR l.unidade_id = ${unidadeId ?? null}::uuid)
         GROUP BY c.id
       `,
     ])

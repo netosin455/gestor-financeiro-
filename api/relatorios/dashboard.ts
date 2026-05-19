@@ -48,7 +48,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         WHERE mes_referencia = ${mes}
           AND deleted_at IS NULL
           AND status != 'cancelado'
-          ${unidadeId ? db`AND unidade_id = ${unidadeId}::uuid` : db``}
+          AND (${unidadeId ?? null}::uuid IS NULL OR unidade_id = ${unidadeId ?? null}::uuid)
       `,
 
       // 2. Total do mês anterior
@@ -58,7 +58,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         WHERE mes_referencia = ${mesAnt}
           AND deleted_at IS NULL
           AND status != 'cancelado'
-          ${unidadeId ? db`AND unidade_id = ${unidadeId}::uuid` : db``}
+          AND (${unidadeId ?? null}::uuid IS NULL OR unidade_id = ${unidadeId ?? null}::uuid)
       `,
 
       // 3. Gastos por categoria
@@ -72,7 +72,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         WHERE l.mes_referencia = ${mes}
           AND l.deleted_at IS NULL
           AND l.status != 'cancelado'
-          ${unidadeId ? db`AND l.unidade_id = ${unidadeId}::uuid` : db``}
+          AND (${unidadeId ?? null}::uuid IS NULL OR l.unidade_id = ${unidadeId ?? null}::uuid)
         GROUP BY c.id, c.nome, c.cor
         ORDER BY valor DESC
       `,
@@ -87,7 +87,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         WHERE l.mes_referencia = ${mes}
           AND l.deleted_at IS NULL
           AND l.status != 'cancelado'
-          ${unidadeId ? db`AND l.unidade_id = ${unidadeId}::uuid` : db``}
+          AND (${unidadeId ?? null}::uuid IS NULL OR l.unidade_id = ${unidadeId ?? null}::uuid)
         GROUP BY u.nome
         ORDER BY valor DESC
       `,
@@ -103,7 +103,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         WHERE l.mes_referencia = ${mes}
           AND l.deleted_at IS NULL
           AND l.status != 'cancelado'
-          ${unidadeId ? db`AND l.unidade_id = ${unidadeId}::uuid` : db``}
+          AND (${unidadeId ?? null}::uuid IS NULL OR l.unidade_id = ${unidadeId ?? null}::uuid)
         ORDER BY l.valor DESC
         LIMIT 5
       `,
@@ -122,7 +122,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         WHERE l.data_vencimento BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days'
           AND l.status = 'pendente'
           AND l.deleted_at IS NULL
-          ${unidadeId ? db`AND l.unidade_id = ${unidadeId}::uuid` : db``}
+          AND (${unidadeId ?? null}::uuid IS NULL OR l.unidade_id = ${unidadeId ?? null}::uuid)
         ORDER BY l.data_vencimento ASC
       `,
 
@@ -130,13 +130,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       db`
         SELECT
           status,
-          COUNT(*)            AS qtd,
+          COUNT(*)                AS qtd,
           COALESCE(SUM(valor), 0) AS total
         FROM lancamentos
         WHERE mes_referencia = ${mes}
           AND deleted_at IS NULL
           AND status != 'cancelado'
-          ${unidadeId ? db`AND unidade_id = ${unidadeId}::uuid` : db``}
+          AND (${unidadeId ?? null}::uuid IS NULL OR unidade_id = ${unidadeId ?? null}::uuid)
         GROUP BY status
       `,
     ])
