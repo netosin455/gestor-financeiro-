@@ -36,6 +36,7 @@ export type CategoriaNome =
   | 'FAXINA'
   | 'INTERNET'
   | 'MATERIAL DE LIMPEZA'
+  | 'TARIFAS'
 
 export type GrupoCategoria = 'operacional' | 'administrativo' | 'campo' | 'folha' | 'tributos'
 
