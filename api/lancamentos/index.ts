@@ -1,4 +1,5 @@
 // GET  /api/lancamentos          — listagem filtrada com paginação
+// GET  /api/lancamentos?meta=1   — retorna categorias + unidades para formulários
 // GET  /api/lancamentos?format=csv — exportação CSV do mês
 // POST /api/lancamentos          — criar novo lançamento
 
@@ -36,6 +37,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // --------------------------------------------------
     if (req.method === 'GET') {
       const q = req.query as Record<string, string>
+
+      // ------ Meta: categorias + unidades para formulários ------
+      if (q.meta) {
+        const [categorias, unidades] = await Promise.all([
+          db`SELECT id, nome, grupo, cor FROM categorias ORDER BY nome`,
+          db`SELECT id, nome FROM unidades WHERE active = true ORDER BY nome`,
+        ])
+        return sendJson(res as unknown as import('http').ServerResponse, 200, {
+          data: { categorias, unidades },
+        })
+      }
 
       const mes        = q.mes        // "YYYY-MM"
       const status     = q.status as StatusLancamento | undefined
