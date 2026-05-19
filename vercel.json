@@ -4,7 +4,7 @@
   "buildCommand": "cd web && npm run build",
   "devCommand": "cd web && npx next dev --port $PORT",
   "outputDirectory": "web/.next",
-  "installCommand": "npm install && cd web && npm install",
+  "installCommand": "npm install",
   "functions": {
     "api/**/*.ts": {
       "maxDuration": 30
