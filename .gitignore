@@ -1,0 +1,32 @@
+# Dependências
+node_modules/
+web/node_modules/
+
+# Build
+web/.next/
+dist/
+
+# Ambiente (NUNCA commitar — contém senhas e tokens)
+.env
+.env.local
+.env.*.local
+*.env.development
+*.env.production
+
+# Vercel
+.vercel/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.idea/
+*.suo
+*.user

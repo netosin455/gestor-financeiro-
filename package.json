@@ -1,0 +1,31 @@
+{
+  "name": "gestor-financeiro",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "cd web && next dev",
+    "build": "cd web && next build",
+    "start": "cd web && next start",
+    "type-check": "tsc --noEmit",
+    "apply-schema": "node schema/apply-schema.mjs"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^0.10.4",
+    "@vercel/node": "^3.2.24",
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.5",
+    "jsonwebtoken": "^9.0.2",
+    "next": "14.2.20",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "ws": "^8.20.1"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "typescript": "^5.4.5"
+  }
+}

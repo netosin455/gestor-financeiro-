@@ -1,0 +1,3 @@
+-- Migração 005 — Seed: Usuário administrador
+-- Executar via: node schema/create-admin.mjs
+-- (não diretamente — o hash é gerado pelo script Node)
