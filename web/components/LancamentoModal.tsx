@@ -12,6 +12,7 @@ interface Lancamento {
   categoria_id: string
   unidade_id:   string | null
   valor:        number
+  tipo:         string
   setor:        string | null
   data_lancamento:  string
   data_vencimento:  string | null
@@ -39,6 +40,7 @@ export function LancamentoModal({ isOpen, onClose, onSuccess, onError, lancament
   const [salvando,   setSalvando]   = useState(false)
 
   // Form state
+  const [tipo,             setTipo]             = useState<'saida' | 'entrada'>('saida')
   const [descricao,        setDescricao]        = useState('')
   const [categoriaId,      setCategoriaId]      = useState('')
   const [unidadeId,        setUnidadeId]        = useState('')
@@ -49,6 +51,10 @@ export function LancamentoModal({ isOpen, onClose, onSuccess, onError, lancament
   const [status,           setStatus]           = useState('pendente')
   const [setor,            setSetor]            = useState('')
   const [observacoes,      setObservacoes]      = useState('')
+
+  const categoriasVisiveis = categorias.filter(c =>
+    tipo === 'entrada' ? c.grupo === 'entrada' : c.grupo !== 'entrada'
+  )
 
   // Carrega meta (categorias + unidades) quando abre
   useEffect(() => {
@@ -67,6 +73,7 @@ export function LancamentoModal({ isOpen, onClose, onSuccess, onError, lancament
   useEffect(() => {
     if (!isOpen) return
     if (lancamento) {
+      setTipo((lancamento.tipo as 'saida' | 'entrada') ?? 'saida')
       setDescricao(lancamento.descricao)
       setCategoriaId(lancamento.categoria_id)
       setUnidadeId(lancamento.unidade_id ?? '')
@@ -78,6 +85,7 @@ export function LancamentoModal({ isOpen, onClose, onSuccess, onError, lancament
       setSetor(lancamento.setor ?? '')
       setObservacoes(lancamento.observacoes ?? '')
     } else {
+      setTipo('saida')
       setDescricao('')
       setCategoriaId('')
       setUnidadeId('')
@@ -103,16 +111,17 @@ export function LancamentoModal({ isOpen, onClose, onSuccess, onError, lancament
     setSalvando(true)
     try {
       const body = {
+        tipo,
         descricao:       descricao.trim(),
         categoria_id:    categoriaId,
         unidade_id:      unidadeId || null,
         valor:           valorNum,
-        setor:           setor || null,
+        setor:           tipo === 'entrada' ? null : (setor || null),
         data_lancamento: dataLancamento,
-        data_vencimento: dataVencimento || null,
+        data_vencimento: tipo === 'entrada' ? null : (dataVencimento || null),
         data_pagamento:  dataPagamento  || null,
-        status,
-        pago:            status === 'pago',
+        status:          tipo === 'entrada' ? 'pago' : status,
+        pago:            tipo === 'entrada' ? true : status === 'pago',
         observacoes:     observacoes.trim() || null,
       }
 
@@ -148,6 +157,26 @@ export function LancamentoModal({ isOpen, onClose, onSuccess, onError, lancament
         </div>
 
         <form onSubmit={handleSubmit} style={formStyle}>
+          {/* Toggle Entrada / Saída */}
+          {!editando && (
+            <div style={toggleContainer}>
+              <button
+                type="button"
+                style={{ ...toggleBtn, ...(tipo === 'saida' ? toggleAtivo('#C0392B') : {}) }}
+                onClick={() => { setTipo('saida'); setCategoriaId('') }}
+              >
+                💸 Saída
+              </button>
+              <button
+                type="button"
+                style={{ ...toggleBtn, ...(tipo === 'entrada' ? toggleAtivo('#27AE60') : {}) }}
+                onClick={() => { setTipo('entrada'); setCategoriaId('') }}
+              >
+                💰 Entrada
+              </button>
+            </div>
+          )}
+
           {/* Descrição */}
           <div style={grupo}>
             <label style={label}>Descrição *</label>
@@ -166,7 +195,7 @@ export function LancamentoModal({ isOpen, onClose, onSuccess, onError, lancament
               <label style={label}>Categoria *</label>
               <select style={input} value={categoriaId} onChange={e => setCategoriaId(e.target.value)} required>
                 <option value="">Selecione...</option>
-                {categorias.map(c => (
+                {categoriasVisiveis.map(c => (
                   <option key={c.id} value={c.id}>{c.nome}</option>
                 ))}
               </select>
@@ -203,40 +232,44 @@ export function LancamentoModal({ isOpen, onClose, onSuccess, onError, lancament
             </div>
           </div>
 
-          {/* Vencimento + Pagamento */}
+          {/* Vencimento + Pagamento (saída) / só Recebimento (entrada) */}
           <div style={linha2}>
+            {tipo === 'saida' && (
+              <div style={grupo}>
+                <label style={label}>Data de Vencimento</label>
+                <input style={input} type="date" value={dataVencimento} onChange={e => setDataVencimento(e.target.value)} />
+              </div>
+            )}
             <div style={grupo}>
-              <label style={label}>Data de Vencimento</label>
-              <input style={input} type="date" value={dataVencimento} onChange={e => setDataVencimento(e.target.value)} />
-            </div>
-            <div style={grupo}>
-              <label style={label}>Data de Pagamento</label>
+              <label style={label}>{tipo === 'entrada' ? 'Data de Recebimento' : 'Data de Pagamento'}</label>
               <input style={input} type="date" value={dataPagamento} onChange={e => setDataPagamento(e.target.value)} />
             </div>
           </div>
 
-          {/* Status + Setor */}
-          <div style={linha2}>
-            <div style={grupo}>
-              <label style={label}>Status</label>
-              <select style={input} value={status} onChange={e => setStatus(e.target.value)}>
-                <option value="pendente">Pendente</option>
-                <option value="pago">Pago</option>
-                <option value="atrasado">Atrasado</option>
-                <option value="cancelado">Cancelado</option>
-              </select>
+          {/* Status + Setor (só para saídas) */}
+          {tipo === 'saida' && (
+            <div style={linha2}>
+              <div style={grupo}>
+                <label style={label}>Status</label>
+                <select style={input} value={status} onChange={e => setStatus(e.target.value)}>
+                  <option value="pendente">Pendente</option>
+                  <option value="pago">Pago</option>
+                  <option value="atrasado">Atrasado</option>
+                  <option value="cancelado">Cancelado</option>
+                </select>
+              </div>
+              <div style={grupo}>
+                <label style={label}>Setor</label>
+                <select style={input} value={setor} onChange={e => setSetor(e.target.value)}>
+                  <option value="">Não definido</option>
+                  <option value="ADMINISTRATIVO">Administrativo</option>
+                  <option value="CAMPO">Campo</option>
+                  <option value="FOLHA DE PAGAMENTOS">Folha de Pagamentos</option>
+                  <option value="TRIBUTOS">Tributos</option>
+                </select>
+              </div>
             </div>
-            <div style={grupo}>
-              <label style={label}>Setor</label>
-              <select style={input} value={setor} onChange={e => setSetor(e.target.value)}>
-                <option value="">Não definido</option>
-                <option value="ADMINISTRATIVO">Administrativo</option>
-                <option value="CAMPO">Campo</option>
-                <option value="FOLHA DE PAGAMENTOS">Folha de Pagamentos</option>
-                <option value="TRIBUTOS">Tributos</option>
-              </select>
-            </div>
-          </div>
+          )}
 
           {/* Observações */}
           <div style={grupo}>
@@ -309,4 +342,16 @@ const btnSalvar: React.CSSProperties = {
   backgroundColor: '#C9A84C', border: 'none',
   color: '#0A0E1A', borderRadius: 8, padding: '10px 24px',
   fontSize: 14, fontWeight: 700, cursor: 'pointer',
+}
+const toggleContainer: React.CSSProperties = {
+  display: 'flex', gap: 0, borderRadius: 10, overflow: 'hidden',
+  border: '1px solid #1E2A3A',
+}
+const toggleBtn: React.CSSProperties = {
+  flex: 1, padding: '10px 0', fontSize: 14, fontWeight: 600,
+  cursor: 'pointer', border: 'none', backgroundColor: '#0D1520', color: '#8B9BB4',
+  transition: 'all 0.15s',
+}
+function toggleAtivo(cor: string): React.CSSProperties {
+  return { backgroundColor: cor + '22', color: cor, borderBottom: `2px solid ${cor}` }
 }

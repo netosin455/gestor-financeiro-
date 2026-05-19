@@ -52,6 +52,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const mes        = q.mes        // "YYYY-MM"
       const status     = q.status as StatusLancamento | undefined
       const setor      = q.setor  as TipoSetor | undefined
+      const tipo       = q.tipo as 'entrada' | 'saida' | undefined
       const categoriaId = q.categoriaId
       const unidadeId  = getUnidadeFiltro(user, q.unidadeId)
 
@@ -118,10 +119,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const { limit, offset, page } = parsePagination(q)
 
-      const mesFiltro       = mes        ?? mesAtual()
-      const statusFiltro    = status     ?? null
-      const setorFiltro     = setor      ?? null
-      const unidadeFiltro   = unidadeId  ?? null
+      const mesFiltro       = mes         ?? mesAtual()
+      const statusFiltro    = status      ?? null
+      const setorFiltro     = setor       ?? null
+      const tipoFiltro      = tipo        ?? null
+      const unidadeFiltro   = unidadeId   ?? null
       const categoriaFiltro = categoriaId ?? null
 
       const [countRows, rows] = await Promise.all([
@@ -134,11 +136,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             AND (${categoriaFiltro}::uuid IS NULL OR l.categoria_id = ${categoriaFiltro}::uuid)
             AND (${statusFiltro}::text IS NULL OR l.status = ${statusFiltro}::text)
             AND (${setorFiltro}::text IS NULL OR l.setor = ${setorFiltro}::text)
+            AND (${tipoFiltro}::text IS NULL OR l.tipo = ${tipoFiltro}::text)
         `,
         db`
           SELECT
             l.id, l.descricao, l.categoria_id, l.unidade_id, l.valor,
-            l.setor, l.data_lancamento, l.data_vencimento, l.data_pagamento,
+            l.tipo, l.setor, l.data_lancamento, l.data_vencimento, l.data_pagamento,
             l.status, l.pago, l.solicitado, l.mes_referencia,
             l.criado_por, l.observacoes, l.created_at, l.updated_at,
             c.nome  AS categoria_nome,
@@ -162,6 +165,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             AND (${categoriaFiltro}::uuid IS NULL OR l.categoria_id = ${categoriaFiltro}::uuid)
             AND (${statusFiltro}::text IS NULL OR l.status = ${statusFiltro}::text)
             AND (${setorFiltro}::text IS NULL OR l.setor = ${setorFiltro}::text)
+            AND (${tipoFiltro}::text IS NULL OR l.tipo = ${tipoFiltro}::text)
           ORDER BY l.data_lancamento DESC, l.created_at DESC
           LIMIT  ${limit}
           OFFSET ${offset}
@@ -193,9 +197,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         descricao, categoria_id, unidade_id, valor, setor,
         data_lancamento, data_vencimento, data_pagamento,
         status = 'pendente', pago = false, solicitado = false, observacoes,
-      } = body
+        tipo = 'saida',
+      } = body as typeof body & { tipo?: 'entrada' | 'saida' }
 
       // Validações de negócio
+      if (!['entrada', 'saida'].includes(tipo)) {
+        throw new ValidationError('tipo deve ser "entrada" ou "saida"')
+      }
       if (typeof valor !== 'number' || valor === 0) {
         throw new ValidationError('Valor não pode ser zero')
       }
@@ -234,7 +242,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         INSERT INTO lancamentos (
           descricao, categoria_id, unidade_id, valor, setor,
           data_lancamento, data_vencimento, data_pagamento,
-          status, pago, solicitado, mes_referencia, criado_por, observacoes
+          status, pago, solicitado, mes_referencia, criado_por, observacoes, tipo
         ) VALUES (
           ${descricao},
           ${categoria_id}::uuid,
@@ -249,7 +257,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           ${solicitado},
           ${mes_referencia},
           ${user.id}::uuid,
-          ${observacoes ?? null}
+          ${observacoes ?? null},
+          ${tipo}
         )
         RETURNING *
       `

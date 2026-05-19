@@ -14,6 +14,7 @@ interface Lancamento {
   id: string
   descricao: string
   valor: number
+  tipo: string
   status: string
   status_calculado: string
   data_lancamento: string
@@ -71,6 +72,7 @@ export default function LancamentosPage() {
   const mesAtual = new Date().toISOString().slice(0, 7)
   const [mes,    setMes]    = useState(mesAtual)
   const [status, setStatus] = useState('')
+  const [aba,    setAba]    = useState<'saida' | 'entrada'>('saida')
   const [page,   setPage]   = useState(1)
 
   const [dados,     setDados]     = useState<Resposta | null>(null)
@@ -88,18 +90,32 @@ export default function LancamentosPage() {
     if (!authLoading && !user) router.replace('/login')
   }, [authLoading, user, router])
 
+  const [totais, setTotais] = useState({ entradas: 0, saidas: 0 })
+
+  useEffect(() => {
+    if (!token) return
+    Promise.all([
+      apiFetch<Resposta>('/api/lancamentos', { params: { mes, tipo: 'entrada', limit: 500 } }, token),
+      apiFetch<Resposta>('/api/lancamentos', { params: { mes, tipo: 'saida',   limit: 500 } }, token),
+    ]).then(([e, s]) => {
+      const somaEntradas = (e.data ?? []).reduce((acc, l) => acc + Number(l.valor), 0)
+      const somaSaidas   = (s.data ?? []).reduce((acc, l) => acc + Number(l.valor), 0)
+      setTotais({ entradas: somaEntradas, saidas: somaSaidas })
+    }).catch(() => {})
+  }, [token, mes]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const carregar = useCallback(() => {
     if (!token) return
     setLoading(true)
     apiFetch<Resposta>(
       '/api/lancamentos',
-      { params: { mes, status: status || undefined, page, limit: 50 } },
+      { params: { mes, tipo: aba, status: status || undefined, page, limit: 50 } },
       token,
     )
       .then(setDados)
       .catch(() => toast.error('Erro ao carregar lançamentos'))
       .finally(() => setLoading(false))
-  }, [token, mes, status, page]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [token, mes, aba, status, page]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Carrega categorias para o import modal
   useEffect(() => {
@@ -171,25 +187,53 @@ export default function LancamentosPage() {
         <div style={styles.header}>
           <div>
             <h1 style={styles.titulo}>Lançamentos</h1>
-            <p style={styles.sub}>
-              {dados ? `${dados.total} registros encontrados` : ''}
-            </p>
+            <p style={styles.sub}>{dados ? `${dados.total} registros` : ''}</p>
           </div>
           <div style={styles.acoesTopo}>
             {podeEditar && (
               <>
-                <button onClick={() => setImportAberto(true)} style={styles.btnSecundario}>
-                  📥 Importar Excel
-                </button>
-                <button onClick={exportarCsv} style={styles.btnSecundario}>
-                  📤 Exportar CSV
-                </button>
+                <button onClick={() => setImportAberto(true)} style={styles.btnSecundario}>📥 Importar</button>
+                <button onClick={exportarCsv} style={styles.btnSecundario}>📤 Exportar CSV</button>
                 <button onClick={() => { setEditando(null); setModalAberto(true) }} style={styles.btnPrimario}>
                   + Novo Lançamento
                 </button>
               </>
             )}
           </div>
+        </div>
+
+        {/* Cards de totais */}
+        <div style={styles.cardsRow}>
+          <div style={styles.cardEntrada}>
+            <div style={styles.cardLabel}>💰 Total Entradas</div>
+            <div style={styles.cardValorVerde}>{formatCurrency(totais.entradas)}</div>
+          </div>
+          <div style={styles.cardSaida}>
+            <div style={styles.cardLabel}>💸 Total Saídas</div>
+            <div style={styles.cardValorVermelho}>{formatCurrency(totais.saidas)}</div>
+          </div>
+          <div style={totais.entradas - totais.saidas >= 0 ? styles.cardSaldoPos : styles.cardSaldoNeg}>
+            <div style={styles.cardLabel}>⚖️ Saldo do Mês</div>
+            <div style={totais.entradas - totais.saidas >= 0 ? styles.cardValorVerde : styles.cardValorVermelho}>
+              {formatCurrency(totais.entradas - totais.saidas)}
+            </div>
+          </div>
+        </div>
+
+        {/* Abas Saídas / Entradas */}
+        <div style={styles.abas}>
+          <button
+            style={{ ...styles.aba, ...(aba === 'saida' ? abaAtiva('#C0392B') : {}) }}
+            onClick={() => { setAba('saida'); setPage(1) }}
+          >
+            💸 Saídas
+          </button>
+          <button
+            style={{ ...styles.aba, ...(aba === 'entrada' ? abaAtiva('#27AE60') : {}) }}
+            onClick={() => { setAba('entrada'); setPage(1) }}
+          >
+            💰 Entradas
+          </button>
         </div>
 
         {/* Filtros */}
@@ -382,6 +426,10 @@ export default function LancamentosPage() {
   )
 }
 
+function abaAtiva(cor: string): React.CSSProperties {
+  return { backgroundColor: cor + '22', color: cor, borderBottom: `2px solid ${cor}` }
+}
+
 function Spin() {
   return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
@@ -415,4 +463,14 @@ const styles: Record<string, React.CSSProperties> = {
   confirmBox: { backgroundColor: '#111827', border: '1px solid #1E2A3A', borderRadius: 14, padding: 32, maxWidth: 400, width: '100%' },
   btnCancelarConf:    { backgroundColor: 'transparent', border: '1px solid #1E2A3A', color: '#8B9BB4', borderRadius: 8, padding: '10px 20px', fontSize: 14, cursor: 'pointer' },
   btnConfirmarExcluir: { backgroundColor: '#C0392B', border: 'none', color: '#fff', borderRadius: 8, padding: '10px 20px', fontSize: 14, fontWeight: 600, cursor: 'pointer' },
+  cardsRow:       { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 },
+  cardEntrada:    { backgroundColor: '#0D2018', border: '1px solid #27AE60', borderRadius: 12, padding: '16px 20px' },
+  cardSaida:      { backgroundColor: '#2D1515', border: '1px solid #C0392B', borderRadius: 12, padding: '16px 20px' },
+  cardSaldoPos:   { backgroundColor: '#0D2018', border: '1px solid #27AE60', borderRadius: 12, padding: '16px 20px' },
+  cardSaldoNeg:   { backgroundColor: '#2D1515', border: '1px solid #C0392B', borderRadius: 12, padding: '16px 20px' },
+  cardLabel:      { color: '#8B9BB4', fontSize: 12, fontWeight: 500, marginBottom: 6 },
+  cardValorVerde: { color: '#27AE60', fontSize: 20, fontWeight: 700 },
+  cardValorVermelho: { color: '#C0392B', fontSize: 20, fontWeight: 700 },
+  abas:           { display: 'flex', gap: 0, borderRadius: 10, overflow: 'hidden', border: '1px solid #1E2A3A', width: 'fit-content' },
+  aba:            { padding: '9px 24px', fontSize: 14, fontWeight: 600, cursor: 'pointer', border: 'none', backgroundColor: '#111827', color: '#8B9BB4', transition: 'all 0.15s' },
 }
