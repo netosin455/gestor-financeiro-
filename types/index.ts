@@ -38,7 +38,9 @@ export type CategoriaNome =
   | 'MATERIAL DE LIMPEZA'
   | 'TARIFAS'
 
-export type GrupoCategoria = 'operacional' | 'administrativo' | 'campo' | 'folha' | 'tributos'
+export type GrupoCategoria = 'operacional' | 'administrativo' | 'campo' | 'folha' | 'tributos' | 'entrada'
+
+export type TipoLancamento = 'entrada' | 'saida'
 
 // ------- Entidades principais -------
 
@@ -81,6 +83,7 @@ export interface Lancamento {
   categoria_id: string
   unidade_id: string | null
   valor: number
+  tipo: TipoLancamento
   setor: TipoSetor | null
   data_lancamento: string    // ISO date "YYYY-MM-DD"
   data_vencimento: string | null
@@ -201,6 +204,7 @@ export interface KpiAlerta {
 
 export interface FiltrosLancamento {
   mes?: string           // "YYYY-MM"
+  tipo?: TipoLancamento
   categoriaId?: string
   unidadeId?: string
   status?: StatusLancamento
@@ -250,6 +254,7 @@ export interface LancamentoCreate {
   categoria_id: string
   unidade_id?: string
   valor: number
+  tipo?: TipoLancamento
   setor?: TipoSetor
   data_lancamento: string
   data_vencimento?: string
