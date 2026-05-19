@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '../../contexts/AuthContext'
 import { apiFetch } from '../../services/api'
 import { Sidebar } from '../../components/Sidebar'
-import { formatCurrency, statusColors } from '../../../theme'
+import { formatCurrency } from '../../../theme'
 
 interface Lancamento {
   id: string
