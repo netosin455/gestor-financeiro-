@@ -213,7 +213,7 @@ export async function registrarAuditoria(params: {
       VALUES (
         ${params.lancamentoId}::uuid,
         ${params.user.id}::uuid,
-        ${params.user.name ?? null},
+        ${params.user.email ?? null},
         ${params.acao},
         ${params.campoAlterado ?? null},
         ${params.valorAnterior ?? null},
