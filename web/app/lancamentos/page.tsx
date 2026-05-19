@@ -97,7 +97,7 @@ export default function LancamentosPage() {
       token,
     )
       .then(setDados)
-      .catch(() => toast.error('Erro ao carregar lançamentos'))
+      .catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Erro ao carregar lançamentos'))
       .finally(() => setLoading(false))
   }, [token, mes, status, page]) // eslint-disable-line react-hooks/exhaustive-deps
 
