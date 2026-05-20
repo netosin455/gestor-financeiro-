@@ -74,8 +74,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const apiKey = process.env.GROQ_API_KEY
     if (!apiKey) {
       return sendJson(res as unknown as import('http').ServerResponse, 503, {
-        error: 'IA não configurada.',
-        todas_env_keys: Object.keys(process.env),
+        error: 'IA não configurada. Contate o administrador.',
       })
     }
 
