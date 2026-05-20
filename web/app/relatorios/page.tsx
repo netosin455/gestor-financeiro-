@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '../../contexts/AuthContext'
 import { apiFetch } from '../../services/api'
 import { Sidebar } from '../../components/Sidebar'
+import { ChatIA } from '../../components/ChatIA'
 import { formatCurrency } from '../../../theme'
 
 interface CategoriaRelatorio {
@@ -49,10 +50,12 @@ export default function RelatoriosPage() {
   const router = useRouter()
 
   const mesAtual = new Date().toISOString().slice(0, 7)
-  const [mes,     setMes]     = useState(mesAtual)
-  const [dados,   setDados]   = useState<RelatorioMensal | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [erro,    setErro]    = useState<string | null>(null)
+  const [mes,        setMes]        = useState(mesAtual)
+  const [dados,      setDados]      = useState<RelatorioMensal | null>(null)
+  const [loading,    setLoading]    = useState(true)
+  const [erro,       setErro]       = useState<string | null>(null)
+  const [analiseIA,  setAnaliseIA]  = useState<string | null>(null)
+  const [loadingIA,  setLoadingIA]  = useState(false)
 
   useEffect(() => {
     if (!authLoading && !user) router.replace('/login')
@@ -64,8 +67,8 @@ export default function RelatoriosPage() {
     setErro(null)
 
     apiFetch<{ data: RelatorioMensal }>(
-      '/api/relatorios/mensal',
-      { params: { mes } },
+      '/api/relatorios',
+      { params: { mes, tipo: 'mensal' } },
       token,
     )
       .then(r => setDados(r.data))
@@ -88,13 +91,37 @@ export default function RelatoriosPage() {
             <h1 style={styles.titulo}>Relatório Mensal</h1>
             <p style={styles.sub}>Comparativo por categoria</p>
           </div>
-          <input
-            type="month"
-            value={mes}
-            max={mesAtual}
-            onChange={e => setMes(e.target.value)}
-            style={styles.inputMes}
-          />
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <input
+              type="month"
+              value={mes}
+              max={mesAtual}
+              onChange={e => { setMes(e.target.value); setAnaliseIA(null) }}
+              style={styles.inputMes}
+            />
+            <button
+              style={styles.btnIA}
+              disabled={!dados || loadingIA}
+              onClick={async () => {
+                if (!dados || !token) return
+                setLoadingIA(true)
+                setAnaliseIA(null)
+                try {
+                  const r = await apiFetch<{ data: { resposta: string } }>('/api/ia', {
+                    method: 'POST',
+                    body: JSON.stringify({ tipo: 'chat', mes, pergunta: `Faça uma análise completa do relatório mensal de ${mes}. Destaque variações relevantes por categoria, riscos e recomendações.` }),
+                  }, token)
+                  setAnaliseIA(r.data.resposta)
+                } catch (e) {
+                  setAnaliseIA('Erro ao gerar análise: ' + (e instanceof Error ? e.message : 'tente novamente'))
+                } finally {
+                  setLoadingIA(false)
+                }
+              }}
+            >
+              {loadingIA ? 'Analisando...' : '🤖 Análise IA'}
+            </button>
+          </div>
         </div>
 
         {erro && <div style={styles.erro}>{erro}</div>}
@@ -124,6 +151,19 @@ export default function RelatoriosPage() {
                 <div style={styles.cardValor}>{categoriasFiltradas.length}</div>
               </div>
             </div>
+
+            {/* Análise IA */}
+            {analiseIA && (
+              <div style={styles.iaCard}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                  <span style={{ fontSize: 18 }}>🤖</span>
+                  <span style={{ color: '#E2C97E', fontWeight: 700, fontSize: 14 }}>Análise IA do Relatório</span>
+                </div>
+                <p style={{ color: '#B8D4F0', fontSize: 14, lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>
+                  {analiseIA}
+                </p>
+              </div>
+            )}
 
             {/* Tabela por categoria */}
             <div style={styles.tableWrap}>
@@ -185,6 +225,8 @@ export default function RelatoriosPage() {
           </>
         ) : null}
       </main>
+
+      {token && <ChatIA token={token} mes={mes} />}
     </div>
   )
 }
@@ -213,4 +255,6 @@ const styles: Record<string, React.CSSProperties> = {
   table:      { width: '100%', borderCollapse: 'collapse' },
   th:         { color: '#8B9BB4', fontSize: 12, fontWeight: 600, textAlign: 'left', padding: '12px 16px', borderBottom: '1px solid #1E2A3A', backgroundColor: '#0D1520', whiteSpace: 'nowrap' },
   td:         { color: '#F2F0EA', fontSize: 13, padding: '12px 16px', borderBottom: '1px solid #0D1520' },
+  btnIA:      { backgroundColor: '#C9A84C', border: 'none', color: '#0A0E1A', borderRadius: 8, padding: '8px 16px', fontSize: 14, fontWeight: 700, cursor: 'pointer' },
+  iaCard:     { backgroundColor: '#0D1A2D', border: '1px solid #2A4A70', borderRadius: 12, padding: '18px 22px' },
 }

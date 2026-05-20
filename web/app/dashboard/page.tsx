@@ -8,6 +8,7 @@ import { MetricCard } from '../../components/MetricCard'
 import { GraficoBarras } from '../../components/GraficoBarras'
 import { AlertaCard } from '../../components/AlertaCard'
 import { Sidebar } from '../../components/Sidebar'
+import { ChatIA } from '../../components/ChatIA'
 import { formatCurrency } from '../../../theme'
 import type { KpiDashboard } from '../../../types'
 
@@ -15,9 +16,11 @@ export default function DashboardPage() {
   const { user, token, loading: authLoading } = useAuth()
   const router = useRouter()
 
-  const [kpi,     setKpi]     = useState<KpiDashboard | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [erro,    setErro]    = useState<string | null>(null)
+  const [kpi,       setKpi]       = useState<KpiDashboard | null>(null)
+  const [loading,   setLoading]   = useState(true)
+  const [erro,      setErro]      = useState<string | null>(null)
+  const [insight,   setInsight]   = useState<string | null>(null)
+  const [loadingIA, setLoadingIA] = useState(false)
 
   const mesAtual = new Date().toISOString().slice(0, 7)
   const [mes, setMes] = useState(mesAtual)
@@ -36,11 +39,18 @@ export default function DashboardPage() {
       setErro(null)
       try {
         const result = await apiFetch<{ data: KpiDashboard }>(
-          '/api/relatorios/dashboard',
+          '/api/relatorios',
           { params: { mes } },
           token,
         )
         setKpi(result.data)
+        // Busca insight da IA após carregar KPIs
+        setInsight(null)
+        setLoadingIA(true)
+        apiFetch<{ data: { resposta: string } }>('/api/ia', {
+          method: 'POST',
+          body: JSON.stringify({ tipo: 'analise', mes, dados: result.data }),
+        }, token).then(r => setInsight(r.data.resposta)).catch(() => {}).finally(() => setLoadingIA(false))
       } catch (e) {
         setErro(e instanceof Error ? e.message : 'Erro ao carregar dados')
       } finally {
@@ -109,6 +119,18 @@ export default function DashboardPage() {
               />
             </div>
 
+            {/* Card de Insight IA */}
+            {(insight || loadingIA) && (
+              <div style={styles.insightCard}>
+                <div style={styles.insightHeader}>
+                  <span style={styles.insightIcon}>🤖</span>
+                  <span style={styles.insightTitulo}>Insight do Mês — IA</span>
+                  {loadingIA && <span style={styles.insightSpinner}>Analisando...</span>}
+                </div>
+                {insight && <p style={styles.insightTexto}>{insight}</p>}
+              </div>
+            )}
+
             {/* Gráficos e tabelas */}
             <div style={styles.gridSecundario}>
               {/* Gastos por categoria */}
@@ -171,6 +193,11 @@ export default function DashboardPage() {
           </>
         ) : null}
       </main>
+
+      {/* Widget de chat flutuante */}
+      {token && (
+        <ChatIA token={token} mes={mes} kpiDados={kpi ?? undefined} />
+      )}
     </div>
   )
 }
@@ -305,4 +332,20 @@ const styles: Record<string, React.CSSProperties> = {
     gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
     gap:                 8,
   },
+  insightCard: {
+    backgroundColor: '#0D1A2D',
+    border:          '1px solid #2A4A70',
+    borderRadius:    12,
+    padding:         '16px 20px',
+  },
+  insightHeader: {
+    display:    'flex',
+    alignItems: 'center',
+    gap:        10,
+    marginBottom: 10,
+  },
+  insightIcon:    { fontSize: 18 },
+  insightTitulo:  { color: '#E2C97E', fontWeight: 700, fontSize: 14, flex: 1 },
+  insightSpinner: { color: '#8B9BB4', fontSize: 12 },
+  insightTexto:   { color: '#B8D4F0', fontSize: 14, lineHeight: 1.6, margin: 0 },
 }

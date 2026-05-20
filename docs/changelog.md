@@ -2,6 +2,19 @@
 
 ---
 
+## [2026-05-20] — IA Financeira (Fase 3)
+
+- Adicionado: `api/ia/index.ts` — endpoint POST que chama Claude API (`claude-sonnet-4-6`) para análise automática e chat financeiro
+- Adicionado: `web/components/ChatIA.tsx` — widget de chat flutuante disponível no dashboard e relatórios
+- Atualizado: `web/app/dashboard/page.tsx` — card "Insight do Mês" com análise automática gerada pela IA ao abrir a página
+- Atualizado: `web/app/relatorios/page.tsx` — botão "Análise IA" gera parecer detalhado do mês + widget de chat
+- Adicionado: `@anthropic-ai/sdk` no `package.json` raiz
+- Refatorado: `api/relatorios/dashboard.ts` + `api/relatorios/mensal.ts` + `api/relatorios/por-unidade.ts` → fundidos em `api/relatorios/index.ts` com `?tipo=dashboard|mensal|por-unidade` (libera 2 slots Vercel)
+- Atualizado: páginas dashboard, alertas e relatórios para usar o novo endpoint `/api/relatorios?tipo=...`
+- **Configuração necessária**: adicionar `ANTHROPIC_API_KEY` nas variáveis de ambiente do projeto Vercel
+
+---
+
 ## [2026-05-19] — Frota, Seguros e sincronização Google Sheets
 
 - Adicionado: `api/operacional/index.ts` — CRUD de frota e listagem de motoristas via `?recurso=frota|motoristas` (ocupa 1 slot Vercel no lugar de 3)

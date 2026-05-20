@@ -44,7 +44,7 @@ export default function AlertasPage() {
     setErro(null)
 
     apiFetch<{ data: KpiDashboard }>(
-      '/api/relatorios/dashboard',
+      '/api/relatorios',
       { params: { mes } },
       token,
     )
