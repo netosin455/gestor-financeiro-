@@ -73,8 +73,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const apiKey = process.env.GROQ_API_KEY
     if (!apiKey) {
+      // DEBUG temporário — mostra quais vars existem com "GROQ" ou "KEY" no nome
+      const envKeys = Object.keys(process.env).filter(k => k.includes('GROQ') || k.includes('KEY'))
       return sendJson(res as unknown as import('http').ServerResponse, 503, {
         error: 'IA não configurada. Configure a variável GROQ_API_KEY no Vercel.',
+        debug_env_keys: envKeys,
       })
     }
 
