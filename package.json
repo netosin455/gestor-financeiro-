@@ -10,7 +10,7 @@
     "apply-schema": "node schema/apply-schema.mjs"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.36.3",
+    "groq-sdk": "^0.9.1",
     "@neondatabase/serverless": "^0.10.4",
     "@vercel/node": "^3.2.24",
     "bcryptjs": "^2.4.3",

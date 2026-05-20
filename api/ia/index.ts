@@ -3,7 +3,7 @@
 // Retorna: { resposta: string }
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import Anthropic from '@anthropic-ai/sdk'
+import Groq from 'groq-sdk'
 import {
   cors, requireAuth, handleError, sendJson,
   parseBody, ValidationError,
@@ -71,10 +71,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     requireAuth(req as unknown as import('http').IncomingMessage)
 
-    const apiKey = process.env.ANTHROPIC_API_KEY
+    const apiKey = process.env.GROQ_API_KEY
     if (!apiKey) {
       return sendJson(res as unknown as import('http').ServerResponse, 503, {
-        error: 'IA não configurada. Configure a variável ANTHROPIC_API_KEY no Vercel.',
+        error: 'IA não configurada. Configure a variável GROQ_API_KEY no Vercel.',
       })
     }
 
@@ -94,7 +94,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       throw new ValidationError('mes deve estar no formato YYYY-MM')
     }
 
-    const client = new Anthropic({ apiKey })
+    const client = new Groq({ apiKey })
 
     let systemPrompt: string
     let userMessage: string
@@ -111,7 +111,6 @@ Evite formalidades excessivas — seja objetivo como um bom CFO seria.`
       userMessage = resumoKpi(dados, mes)
 
     } else {
-      // chat
       if (!pergunta || !pergunta.trim()) throw new ValidationError('pergunta é obrigatória para tipo=chat')
 
       systemPrompt = `Você é um assistente financeiro do Gestor Financeiro Araújo Prev, um sistema de gestão de despesas de escritório de advocacia previdenciária.
@@ -122,16 +121,16 @@ ${dados ? `\n\nContexto atual:\n${resumoKpi(dados, mes)}` : ''}`
       userMessage = pergunta.trim()
     }
 
-    const message = await client.messages.create({
-      model:      'claude-sonnet-4-6',
+    const completion = await client.chat.completions.create({
+      model:      'llama-3.3-70b-versatile',
       max_tokens: 512,
-      system:     systemPrompt,
-      messages: [{ role: 'user', content: userMessage }],
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user',   content: userMessage  },
+      ],
     })
 
-    const resposta = message.content[0]?.type === 'text'
-      ? message.content[0].text
-      : 'Não foi possível gerar uma resposta.'
+    const resposta = completion.choices[0]?.message?.content ?? 'Não foi possível gerar uma resposta.'
 
     return sendJson(res as unknown as import('http').ServerResponse, 200, { data: { resposta } })
   } catch (err) {
