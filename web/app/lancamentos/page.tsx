@@ -100,26 +100,19 @@ export default function LancamentosPage() {
 
   const [totais, setTotais] = useState({ entradas: 0, saidas: 0 })
 
+  // Carrega totais de valor e progresso de pagamentos do mês em paralelo
   useEffect(() => {
     if (!token) return
     Promise.all([
       apiFetch<Resposta>('/api/lancamentos', { params: { mes, tipo: 'entrada', limit: 500 } }, token),
       apiFetch<Resposta>('/api/lancamentos', { params: { mes, tipo: 'saida',   limit: 500 } }, token),
-    ]).then(([e, s]) => {
-      const somaEntradas = (e.data ?? []).reduce((acc, l) => acc + Number(l.valor), 0)
-      const somaSaidas   = (s.data ?? []).reduce((acc, l) => acc + Number(l.valor), 0)
-      setTotais({ entradas: somaEntradas, saidas: somaSaidas })
-    }).catch(() => {})
-  }, [token, mes]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Busca progresso de pagamentos para a aba de saídas
-  useEffect(() => {
-    if (!token) return
-    Promise.all([
-      apiFetch<{ total: number }>('/api/lancamentos', { params: { mes, tipo: 'saida', limit: 1 } }, token),
       apiFetch<{ total: number }>('/api/lancamentos', { params: { mes, tipo: 'saida', status: 'pago', limit: 1 } }, token),
-    ]).then(([all, pagos]) => {
-      setProgresso({ total: all.total ?? 0, pagas: pagos.total ?? 0 })
+    ]).then(([e, s, pagos]) => {
+      setTotais({
+        entradas: (e.data ?? []).reduce((acc, l) => acc + Number(l.valor), 0),
+        saidas:   (s.data ?? []).reduce((acc, l) => acc + Number(l.valor), 0),
+      })
+      setProgresso({ total: s.total ?? 0, pagas: pagos.total ?? 0 })
     }).catch(() => {})
   }, [token, mes]) // eslint-disable-line react-hooks/exhaustive-deps
 

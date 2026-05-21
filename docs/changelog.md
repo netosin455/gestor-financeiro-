@@ -2,6 +2,21 @@
 
 ---
 
+## [2026-05-21] — Melhorias de UX: Entrada Rápida, Ações em Lote, Barra de Progresso
+
+- Adicionado: `web/components/QuickEntry.tsx` — botão FAB flutuante em todas as páginas para lançamento rápido com 4 campos (tipo, descrição, categoria, valor/data)
+- Adicionado: `web/app/ClientLayout.tsx` — wrapper client-side que injeta o QuickEntry globalmente via layout raiz
+- Adicionado: Atalhos de teclado — `N` abre lançamento rápido, `?` exibe painel de atalhos, `Esc` fecha modais
+- Adicionado: `web/components/EmptyState.tsx` — componente reutilizável de estado vazio com ícone, mensagem e botão de ação
+- Adicionado: Checkboxes de seleção múltipla na tabela de lançamentos com barra de ações em lote (marcar como pago / cancelar)
+- Adicionado: Endpoint `PATCH /api/lancamentos` para operações em lote com validação de escopo por unidade (gestor só altera própria unidade)
+- Adicionado: Barra de progresso de pagamentos na aba de saídas (X/Y pagas com cor dinâmica: verde ≥80%, laranja 50-79%, vermelho <50%)
+- Refatorado: `web/app/lancamentos/page.tsx` — 2 useEffects de totais e progresso fundidos em 1 (3 chamadas paralelas em vez de 2+2)
+- Adicionado: `reports/bugs_found.md` e `reports/security_report.md` — documentação de bugs encontrados e análise de segurança
+- Adicionado: `tests/bulk_actions.test.ts` — testes unitários de validação bulk, formulário QuickEntry e barra de progresso
+
+---
+
 ## [2026-05-20] — IA Financeira (Fase 3)
 
 - Adicionado: `api/ia/index.ts` — endpoint POST que chama Claude API (`claude-sonnet-4-6`) para análise automática e chat financeiro

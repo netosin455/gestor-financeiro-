@@ -27,14 +27,16 @@ export function QuickEntry() {
   const [categoriaId, setCategoriaId] = useState('')
   const [valor, setValor] = useState('')
   const [data, setData] = useState(hoje())
+  const [erroMeta, setErroMeta] = useState(false)
 
   const podeEditar = user && ['super_admin', 'admin', 'financeiro'].includes(user.role)
 
   useEffect(() => {
     if (!aberto || !token) return
+    setErroMeta(false)
     apiFetch<{ data: { categorias: Categoria[] } }>(
       '/api/lancamentos', { params: { meta: '1' } }, token
-    ).then(r => setCategorias(r.data.categorias)).catch(() => {})
+    ).then(r => setCategorias(r.data.categorias)).catch(() => setErroMeta(true))
   }, [aberto, token])
 
   useEffect(() => {
@@ -179,10 +181,15 @@ export function QuickEntry() {
               </div>
 
               {/* Categoria + Valor */}
+              {erroMeta && (
+                <div style={{ padding: '8px 12px', borderRadius: 8, backgroundColor: '#3D1515', color: '#E57373', border: '1px solid #C0392B', fontSize: 12 }}>
+                  ⚠️ Falha ao carregar categorias. Verifique sua conexão.
+                </div>
+              )}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
                   <label style={lbl}>Categoria *</label>
-                  <select value={categoriaId} onChange={e => setCategoriaId(e.target.value)} style={inp}>
+                  <select value={categoriaId} onChange={e => setCategoriaId(e.target.value)} style={inp} disabled={erroMeta}>
                     <option value="">Selecione...</option>
                     {categoriasVisiveis.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                   </select>

@@ -284,12 +284,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!Array.isArray(ids) || ids.length === 0) {
         throw new ValidationError('ids deve ser um array não vazio')
       }
+      if (ids.length > 200) {
+        throw new ValidationError('Máximo de 200 registros por operação em lote')
+      }
       if (acao !== 'pagar' && acao !== 'cancelar') {
         throw new ValidationError('acao deve ser "pagar" ou "cancelar"')
       }
 
-      const dataHoje = new Date().toISOString().slice(0, 10)
-      const idsStr   = ids as string[]
+      const dataHoje  = new Date().toISOString().slice(0, 10)
+      const idsStr    = ids as string[]
+      const unidadeFiltroGestor = user.role === 'gestor' ? (user.unidade ?? null) : null
 
       if (acao === 'pagar') {
         await db`
@@ -299,6 +303,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               updated_at = NOW()
           WHERE id = ANY(${idsStr}::uuid[])
             AND deleted_at IS NULL
+            AND (${unidadeFiltroGestor}::uuid IS NULL OR unidade_id = ${unidadeFiltroGestor}::uuid)
         `
       } else {
         await db`
@@ -306,6 +311,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           SET status = 'cancelado', updated_at = NOW()
           WHERE id = ANY(${idsStr}::uuid[])
             AND deleted_at IS NULL
+            AND (${unidadeFiltroGestor}::uuid IS NULL OR unidade_id = ${unidadeFiltroGestor}::uuid)
         `
       }
 
