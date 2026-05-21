@@ -7,6 +7,7 @@ import { apiFetch } from '../../services/api'
 import { Sidebar } from '../../components/Sidebar'
 import { LancamentoModal } from '../../components/LancamentoModal'
 import { ImportModal } from '../../components/ImportModal'
+import { EmptyState } from '../../components/EmptyState'
 import { useToast, ToastContainer } from '../../components/Toast'
 import { formatCurrency } from '../../../theme'
 
@@ -75,16 +76,23 @@ export default function LancamentosPage() {
   const [aba,    setAba]    = useState<'saida' | 'entrada'>('saida')
   const [page,   setPage]   = useState(1)
 
-  const [dados,     setDados]     = useState<Resposta | null>(null)
-  const [loading,   setLoading]   = useState(true)
+  const [dados,      setDados]      = useState<Resposta | null>(null)
+  const [loading,    setLoading]    = useState(true)
   const [categorias, setCategorias] = useState<Categoria[]>([])
 
+  // Progresso de pagamentos (apenas saídas)
+  const [progresso, setProgresso] = useState<{ total: number; pagas: number } | null>(null)
+
+  // Bulk selection
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
+  const [bulkLoading,  setBulkLoading]  = useState(false)
+
   // Modais
-  const [modalAberto,     setModalAberto]     = useState(false)
-  const [importAberto,    setImportAberto]    = useState(false)
-  const [editando,        setEditando]        = useState<Lancamento | null>(null)
-  const [confirmDelete,   setConfirmDelete]   = useState<string | null>(null)
-  const [pagandoId,       setPagandoId]       = useState<string | null>(null)
+  const [modalAberto,   setModalAberto]   = useState(false)
+  const [importAberto,  setImportAberto]  = useState(false)
+  const [editando,      setEditando]      = useState<Lancamento | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [pagandoId,     setPagandoId]     = useState<string | null>(null)
 
   useEffect(() => {
     if (!authLoading && !user) router.replace('/login')
@@ -104,9 +112,21 @@ export default function LancamentosPage() {
     }).catch(() => {})
   }, [token, mes]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Busca progresso de pagamentos para a aba de saídas
+  useEffect(() => {
+    if (!token) return
+    Promise.all([
+      apiFetch<{ total: number }>('/api/lancamentos', { params: { mes, tipo: 'saida', limit: 1 } }, token),
+      apiFetch<{ total: number }>('/api/lancamentos', { params: { mes, tipo: 'saida', status: 'pago', limit: 1 } }, token),
+    ]).then(([all, pagos]) => {
+      setProgresso({ total: all.total ?? 0, pagas: pagos.total ?? 0 })
+    }).catch(() => {})
+  }, [token, mes]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const carregar = useCallback(() => {
     if (!token) return
     setLoading(true)
+    setSelecionados(new Set())
     apiFetch<Resposta>(
       '/api/lancamentos',
       { params: { mes, tipo: aba, status: status || undefined, page, limit: 50 } },
@@ -117,7 +137,6 @@ export default function LancamentosPage() {
       .finally(() => setLoading(false))
   }, [token, mes, aba, status, page]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Carrega categorias para o import modal
   useEffect(() => {
     if (!token) return
     apiFetch<{ data: { categorias: Categoria[] } }>('/api/lancamentos', { params: { meta: '1' } }, token)
@@ -154,16 +173,50 @@ export default function LancamentosPage() {
     }
   }
 
+  // Bulk actions
+  const toggleSelecionado = (id: string) => {
+    setSelecionados(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const toggleTodos = () => {
+    const ids = dados?.data.map(l => l.id) ?? []
+    if (selecionados.size === ids.length) {
+      setSelecionados(new Set())
+    } else {
+      setSelecionados(new Set(ids))
+    }
+  }
+
+  const executarBulk = async (acao: 'pagar' | 'cancelar') => {
+    if (selecionados.size === 0) return
+    setBulkLoading(true)
+    try {
+      await apiFetch('/api/lancamentos', {
+        method: 'PATCH',
+        body: JSON.stringify({ ids: Array.from(selecionados), acao }),
+      }, token!)
+      const label = acao === 'pagar' ? 'marcados como pagos' : 'cancelados'
+      toast.success(`${selecionados.size} lançamento(s) ${label}!`)
+      setSelecionados(new Set())
+      carregar()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao executar ação em lote')
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
   const exportarCsv = () => {
     const url = `/api/lancamentos?format=csv&mes=${mes}`
-    const a = document.createElement('a')
-    a.href = url
-    a.setAttribute('Authorization', `Bearer ${token}`)
-    // Abre com fetch para enviar token
     fetch(url, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.blob())
       .then(blob => {
         const u = URL.createObjectURL(blob)
+        const a = document.createElement('a')
         a.href = u
         a.download = `lancamentos-${mes}.csv`
         a.click()
@@ -172,8 +225,21 @@ export default function LancamentosPage() {
       .catch(() => toast.error('Erro ao exportar CSV'))
   }
 
-  const podeEditar = user && ['super_admin', 'admin', 'financeiro'].includes(user.role)
+  const podeEditar  = user && ['super_admin', 'admin', 'financeiro'].includes(user.role)
   const podeExcluir = user && ['super_admin', 'admin'].includes(user.role)
+
+  // Barra de progresso
+  const pct = progresso && progresso.total > 0
+    ? Math.round((progresso.pagas / progresso.total) * 100)
+    : null
+
+  const corProgresso = pct === null ? '#1E2A3A'
+    : pct >= 80 ? '#27AE60'
+    : pct >= 50 ? '#E67E22'
+    : '#C0392B'
+
+  const todosSelecionados = !!(dados?.data.length && selecionados.size === dados.data.length)
+  const algunsSelecionados = selecionados.size > 0 && !todosSelecionados
 
   if (authLoading) return <Spin />
   if (!user) return null
@@ -220,6 +286,28 @@ export default function LancamentosPage() {
           </div>
         </div>
 
+        {/* Barra de progresso de pagamentos (apenas aba saídas) */}
+        {aba === 'saida' && pct !== null && (
+          <div style={{ backgroundColor: '#111827', border: '1px solid #1E2A3A', borderRadius: 10, padding: '12px 16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <span style={{ color: '#8B9BB4', fontSize: 12, fontWeight: 500 }}>
+                Progresso de pagamentos
+              </span>
+              <span style={{ color: corProgresso, fontSize: 13, fontWeight: 700 }}>
+                {progresso!.pagas}/{progresso!.total} pagas ({pct}%)
+              </span>
+            </div>
+            <div style={{ height: 6, backgroundColor: '#1E2A3A', borderRadius: 3, overflow: 'hidden' }}>
+              <div style={{
+                height: '100%', borderRadius: 3,
+                backgroundColor: corProgresso,
+                width: `${pct}%`,
+                transition: 'width 0.5s ease',
+              }} />
+            </div>
+          </div>
+        )}
+
         {/* Abas Saídas / Entradas */}
         <div style={styles.abas}>
           <button
@@ -257,6 +345,41 @@ export default function LancamentosPage() {
           />
         </div>
 
+        {/* Barra de Bulk Actions */}
+        {selecionados.size > 0 && (
+          <div style={{
+            backgroundColor: '#1E2A3A', border: '1px solid #C9A84C',
+            borderRadius: 10, padding: '10px 16px',
+            display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+          }}>
+            <span style={{ color: '#E2C97E', fontSize: 13, fontWeight: 600 }}>
+              {selecionados.size} selecionado(s)
+            </span>
+            {aba === 'saida' && (
+              <button
+                onClick={() => executarBulk('pagar')}
+                disabled={bulkLoading}
+                style={{ backgroundColor: '#0D3320', border: '1px solid #27AE60', color: '#27AE60', borderRadius: 7, padding: '6px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+              >
+                ✅ Marcar como pago
+              </button>
+            )}
+            <button
+              onClick={() => executarBulk('cancelar')}
+              disabled={bulkLoading}
+              style={{ backgroundColor: '#2D1515', border: '1px solid #C0392B', color: '#C0392B', borderRadius: 7, padding: '6px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+            >
+              🚫 Cancelar
+            </button>
+            <button
+              onClick={() => setSelecionados(new Set())}
+              style={{ background: 'none', border: 'none', color: '#8B9BB4', fontSize: 13, cursor: 'pointer', marginLeft: 'auto' }}
+            >
+              ✕ Limpar seleção
+            </button>
+          </div>
+        )}
+
         {/* Tabela */}
         {loading ? <Spin /> : (
           <>
@@ -264,6 +387,17 @@ export default function LancamentosPage() {
               <table style={styles.table}>
                 <thead>
                   <tr>
+                    {podeEditar && (
+                      <th style={{ ...styles.th, width: 36, textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={todosSelecionados}
+                          ref={el => { if (el) el.indeterminate = algunsSelecionados }}
+                          onChange={toggleTodos}
+                          style={{ cursor: 'pointer', accentColor: '#C9A84C' }}
+                        />
+                      </th>
+                    )}
                     <th style={styles.th}>Data</th>
                     <th style={styles.th}>Descrição</th>
                     <th style={styles.th}>Categoria</th>
@@ -275,79 +409,91 @@ export default function LancamentosPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(!dados?.data || dados.data.length === 0) && (
+                  {(!dados?.data || dados.data.length === 0) ? (
                     <tr>
-                      <td colSpan={podeEditar ? 8 : 7} style={{ ...styles.td, textAlign: 'center', color: '#8B9BB4', padding: 32 }}>
-                        Nenhum lançamento encontrado para este período
+                      <td colSpan={podeEditar ? 9 : 7} style={{ padding: 0 }}>
+                        <EmptyState
+                          icone={aba === 'saida' ? '💸' : '💰'}
+                          titulo={`Nenhuma ${aba === 'saida' ? 'saída' : 'entrada'} em ${mes}`}
+                          descricao={status ? `Nenhum lançamento com status "${status}" neste período.` : 'Registre o primeiro lançamento deste mês.'}
+                          acaoLabel={podeEditar ? `+ Nova ${aba === 'saida' ? 'Saída' : 'Entrada'}` : undefined}
+                          onAcao={podeEditar ? () => { setEditando(null); setModalAberto(true) } : undefined}
+                        />
                       </td>
                     </tr>
-                  )}
-                  {dados?.data.map(l => {
-                    const st = l.status_calculado || l.status
-                    return (
-                      <tr key={l.id}>
-                        <td style={styles.td}>{fmtDate(l.data_lancamento)}</td>
-                        <td style={{ ...styles.td, maxWidth: 220 }}>
-                          <div style={{ color: '#F2F0EA', fontSize: 13 }}>{l.descricao}</div>
-                          {l.observacoes && (
-                            <div style={{ color: '#8B9BB4', fontSize: 11, marginTop: 2 }}>{l.observacoes}</div>
+                  ) : (
+                    dados.data.map(l => {
+                      const st = l.status_calculado || l.status
+                      const marcado = selecionados.has(l.id)
+                      return (
+                        <tr
+                          key={l.id}
+                          style={{ backgroundColor: marcado ? '#1A2A3A' : undefined, transition: 'background-color 0.1s' }}
+                        >
+                          {podeEditar && (
+                            <td style={{ ...styles.td, textAlign: 'center', width: 36 }}>
+                              <input
+                                type="checkbox"
+                                checked={marcado}
+                                onChange={() => toggleSelecionado(l.id)}
+                                style={{ cursor: 'pointer', accentColor: '#C9A84C' }}
+                              />
+                            </td>
                           )}
-                        </td>
-                        <td style={styles.td}>
-                          <span style={{ color: l.categoria_cor || '#E2C97E', fontSize: 12 }}>
-                            {l.categoria_nome}
-                          </span>
-                        </td>
-                        <td style={{ ...styles.td, color: '#8B9BB4', fontSize: 12 }}>
-                          {l.unidade_nome ?? '—'}
-                        </td>
-                        <td style={{ ...styles.td, color: '#8B9BB4', fontSize: 12 }}>
-                          {fmtDate(l.data_vencimento)}
-                        </td>
-                        <td style={{ ...styles.td, color: '#E2C97E', fontWeight: 600, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                          {formatCurrency(l.valor)}
-                        </td>
-                        <td style={styles.td}>
-                          <span style={badgeStyle(st)}>{st.toUpperCase()}</span>
-                        </td>
-                        {podeEditar && (
-                          <td style={{ ...styles.td, textAlign: 'center' }}>
-                            <div style={styles.acoesLinha}>
-                              {/* Editar */}
-                              <button
-                                title="Editar"
-                                style={styles.btnAcao}
-                                onClick={() => { setEditando(l); setModalAberto(true) }}
-                              >
-                                ✏️
-                              </button>
-                              {/* Marcar como pago */}
-                              {st !== 'pago' && st !== 'cancelado' && (
-                                <button
-                                  title="Marcar como pago"
-                                  style={styles.btnAcao}
-                                  onClick={() => pagar(l.id)}
-                                  disabled={pagandoId === l.id}
-                                >
-                                  ✅
-                                </button>
-                              )}
-                              {/* Excluir */}
-                              {podeExcluir && (
-                                <button
-                                  title="Excluir"
-                                  style={styles.btnAcaoDanger}
-                                  onClick={() => setConfirmDelete(l.id)}
-                                >
-                                  🗑️
-                                </button>
-                              )}
-                            </div>
+                          <td style={styles.td}>{fmtDate(l.data_lancamento)}</td>
+                          <td style={{ ...styles.td, maxWidth: 220 }}>
+                            <div style={{ color: '#F2F0EA', fontSize: 13 }}>{l.descricao}</div>
+                            {l.observacoes && (
+                              <div style={{ color: '#8B9BB4', fontSize: 11, marginTop: 2 }}>{l.observacoes}</div>
+                            )}
                           </td>
-                        )}
-                      </tr>
-                    )
-                  })}
+                          <td style={styles.td}>
+                            <span style={{ color: l.categoria_cor || '#E2C97E', fontSize: 12 }}>
+                              {l.categoria_nome}
+                            </span>
+                          </td>
+                          <td style={{ ...styles.td, color: '#8B9BB4', fontSize: 12 }}>
+                            {l.unidade_nome ?? '—'}
+                          </td>
+                          <td style={{ ...styles.td, color: '#8B9BB4', fontSize: 12 }}>
+                            {fmtDate(l.data_vencimento)}
+                          </td>
+                          <td style={{ ...styles.td, color: '#E2C97E', fontWeight: 600, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            {formatCurrency(l.valor)}
+                          </td>
+                          <td style={styles.td}>
+                            <span style={badgeStyle(st)}>{st.toUpperCase()}</span>
+                          </td>
+                          {podeEditar && (
+                            <td style={{ ...styles.td, textAlign: 'center' }}>
+                              <div style={styles.acoesLinha}>
+                                <button
+                                  title="Editar"
+                                  style={styles.btnAcao}
+                                  onClick={() => { setEditando(l); setModalAberto(true) }}
+                                >✏️</button>
+                                {st !== 'pago' && st !== 'cancelado' && (
+                                  <button
+                                    title="Marcar como pago"
+                                    style={styles.btnAcao}
+                                    onClick={() => pagar(l.id)}
+                                    disabled={pagandoId === l.id}
+                                  >✅</button>
+                                )}
+                                {podeExcluir && (
+                                  <button
+                                    title="Excluir"
+                                    style={styles.btnAcaoDanger}
+                                    onClick={() => setConfirmDelete(l.id)}
+                                  >🗑️</button>
+                                )}
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      )
+                    })
+                  )}
                 </tbody>
               </table>
             </div>

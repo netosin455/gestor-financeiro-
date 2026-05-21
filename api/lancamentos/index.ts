@@ -273,6 +273,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return sendJson(res as unknown as import('http').ServerResponse, 201, { data: novo })
     }
 
+    // --------------------------------------------------
+    // PATCH — Ações em lote (bulk)
+    // --------------------------------------------------
+    if (req.method === 'PATCH') {
+      checkPermission(user, ['super_admin', 'admin', 'financeiro'])
+
+      const { ids, acao } = req.body as { ids: unknown; acao: unknown }
+
+      if (!Array.isArray(ids) || ids.length === 0) {
+        throw new ValidationError('ids deve ser um array não vazio')
+      }
+      if (acao !== 'pagar' && acao !== 'cancelar') {
+        throw new ValidationError('acao deve ser "pagar" ou "cancelar"')
+      }
+
+      const dataHoje = new Date().toISOString().slice(0, 10)
+      const idsStr   = ids as string[]
+
+      if (acao === 'pagar') {
+        await db`
+          UPDATE lancamentos
+          SET status = 'pago', pago = true,
+              data_pagamento = ${dataHoje}::date,
+              updated_at = NOW()
+          WHERE id = ANY(${idsStr}::uuid[])
+            AND deleted_at IS NULL
+        `
+      } else {
+        await db`
+          UPDATE lancamentos
+          SET status = 'cancelado', updated_at = NOW()
+          WHERE id = ANY(${idsStr}::uuid[])
+            AND deleted_at IS NULL
+        `
+      }
+
+      return sendJson(res as unknown as import('http').ServerResponse, 200, {
+        data: { updated: idsStr.length, acao },
+      })
+    }
+
     return sendJson(res as unknown as import('http').ServerResponse, 405, { error: 'Método não permitido' })
   } catch (err) {
     return handleError(err, res as unknown as import('http').ServerResponse)

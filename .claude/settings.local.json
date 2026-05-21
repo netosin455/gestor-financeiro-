@@ -39,7 +39,21 @@
       "Bash(git commit *)",
       "Bash(node -e \"const bcrypt = require\\('bcryptjs'\\); bcrypt.hash\\('Metamorfose@4060', 10\\).then\\(h => console.log\\(h\\)\\)\")",
       "Bash(node schema/apply-schema.mjs)",
-      "Bash(node schema/migration-v3.mjs)"
+      "Bash(node schema/migration-v3.mjs)",
+      "Bash(Get-ChildItem \"C:\\\\Users\\\\carlo\\\\OneDrive\\\\Área de Trabalho\\\\gestor financeiro\" -Filter \"*.md\")",
+      "Bash(Select-Object Name)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\carlo\\\\OneDrive\\\\Área de Trabalho\\\\gestor financeiro\" -Directory)",
+      "Bash(del \"C:\\\\Users\\\\carlo\\\\OneDrive\\\\Área de Trabalho\\\\gestor financeiro\\\\api\\\\calendario\\\\index.ts\")",
+      "Bash(grep -Hm1 ^description: 'C:/Users/carlo/OneDrive/Área de Trabalho/gestor financeiro/.claude/skills/*/SKILL.md')",
+      "Bash(curl -s http://localhost:3000 -o /dev/null -w \"%{http_code}\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/ia -H 'Content-Type: application/json' -H 'Authorization: Bearer test' -d '{\"tipo\":\"chat\",\"mes\":\"2026-05\",\"pergunta\":\"teste\"}')",
+      "Bash(npx vercel *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\carlo\\\\OneDrive\\\\Área de Trabalho\\\\gestor financeiro\" -Recurse -Force)",
+      "Bash(Select-Object -First 50)",
+      "Bash(Format-Table FullName, PSIsContainer)",
+      "Bash(ConvertTo-Csv -NoTypeInformation)",
+      "Bash(Out-String)",
+      "Bash(xargs -I {} basename {})"
     ]
   }
 }
